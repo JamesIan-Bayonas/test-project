@@ -1,0 +1,43 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum SubscriptionStatus {
+  INACTIVE
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+model User {
+  id                     String             @id @default(uuid())
+  email                  String             @unique
+  stripeCustomerId       String?            @unique
+  stripeSubscriptionId   String?            @unique
+  subscriptionStatus     SubscriptionStatus @default(INACTIVE)
+  subscriptionCurrentEnd DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  searches SearchQuery[]
+
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+}
+
+model SearchQuery {
+  id        String   @id @default(uuid())
+  userId    String
+  query     String   @db.VarChar(255)
+  language  String   @db.VarChar(5)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+}

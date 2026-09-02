@@ -1,0 +1,74 @@
+# ==============================================================================
+# Dependency Directories
+# ==============================================================================
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+.pnp
+.pnp.js
+
+# ==============================================================================
+# Security & Secret Boundaries (Article IV Mandate)
+# Keep secrets in environment variables; never commit real credentials
+# ==============================================================================
+.env
+.env*.local
+backend/.env
+backend/.env.*.local
+frontend/.env
+frontend/.env.*.local
+
+# Explicitly whitelist example templates required for assignment evaluation
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# ==============================================================================
+# Build & Transpilation Artifacts
+# ==============================================================================
+dist/
+backend/dist/
+.next/
+frontend/.next/
+out/
+build/
+*.tsbuildinfo
+
+# ==============================================================================
+# Prisma & Database Artifacts
+# (Note: migrations/ MUST remain tracked under version control)
+# ==============================================================================
+*.sqlite
+*.sqlite-journal
+mysql_data/
+
+# ==============================================================================
+# Logs & Process Monitoring
+# ==============================================================================
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==============================================================================
+# Testing & Code Coverage
+# ==============================================================================
+coverage/
+backend/coverage/
+frontend/coverage/
+.nyc_output/
+
+# ==============================================================================
+# Operating System & IDE Files
+# ==============================================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
