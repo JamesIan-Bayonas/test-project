@@ -1,3 +1,5 @@
+// backend/src/modules/search/search.controller.ts
+
 import { Request, Response, NextFunction } from 'express';
 import { SearchService } from './search.service';
 import { SearchQuerySchema } from './search.dto';
@@ -12,7 +14,6 @@ export class SearchController {
     try {
       const validatedQuery = SearchQuerySchema.parse(req.query);
 
-      // Resolve demo user state from database
       const user = await prisma.user.findUnique({
         where: { email: env.DEMO_USER_EMAIL },
       });
@@ -20,12 +21,11 @@ export class SearchController {
       if (!user) {
         res.status(404).json({
           error: 'UserNotFound',
-          message: `Demo user with email '${env.DEMO_USER_EMAIL}' is not initialized. Run 'npm run prisma:seed'.`,
+          message: `Demo user '${env.DEMO_USER_EMAIL}' is not initialized. Run 'npm run prisma:seed'.`,
         });
         return;
       }
 
-      // Check subscription canonical status
       const isSubscribed = user.subscriptionStatus === SubscriptionStatus.ACTIVE;
 
       const result = await searchService.searchProducts(
@@ -38,6 +38,27 @@ export class SearchController {
       );
 
       res.status(200).json(result);
+    } catch (error: unknown) {
+      next(error);
+    }
+  }
+
+  public async getHistory(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email: env.DEMO_USER_EMAIL },
+      });
+
+      if (!user) {
+        res.status(404).json({
+          error: 'UserNotFound',
+          message: `Demo user '${env.DEMO_USER_EMAIL}' is not initialized.`,
+        });
+        return;
+      }
+
+      const history = await searchService.getRecentSearches(user.id);
+      res.status(200).json({ history });
     } catch (error: unknown) {
       next(error);
     }

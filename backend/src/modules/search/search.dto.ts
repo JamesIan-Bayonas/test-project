@@ -1,3 +1,5 @@
+// backend/src/modules/search/search.dto.ts
+
 import { z } from 'zod';
 
 export type SupportedLanguage = 'en' | 'nl' | 'de' | 'fr';
@@ -12,7 +14,7 @@ export const SearchQuerySchema = z.object({
 export type SearchQueryParams = z.infer<typeof SearchQuerySchema>;
 
 export interface NutritionalValues {
-  calories: number | null; // kcal per 100g
+  calories: number | null;
   energyKj: number | null;
   fat: number | null;
   saturatedFat: number | null;
@@ -45,13 +47,10 @@ export interface SearchResultResponse {
   products: ProductDTO[];
 }
 
-/**
- * Executes a deterministic 4-language fallback cascade (Article V):
- * 1. Target locale field (e.g. product_name_nl)
- * 2. English canonical field (product_name_en)
- * 3. Root generic field (product_name)
- * 4. Fallback default string
- */
+export interface SearchHistoryResponse {
+  history: string[];
+}
+
 export function extractLocalizedField(
   rawProduct: Record<string, unknown>,
   baseFieldName: string,
@@ -79,10 +78,6 @@ export function extractLocalizedField(
   return fallback;
 }
 
-/**
- * Defensive parsing for Open Food Facts nutriments dictionary.
- * Sanitizes null, string numbers, or absent values into clean numbers or null.
- */
 export function extractNutriments(rawNutriments: Record<string, unknown> | undefined): NutritionalValues {
   if (!rawNutriments || typeof rawNutriments !== 'object') {
     return {
