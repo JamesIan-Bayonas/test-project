@@ -9,7 +9,7 @@ services:
       MYSQL_USER: app_user
       MYSQL_PASSWORD: app_password
     ports:
-      - "3306:3306"
+      - "3307:3306" # Maps host 3307 -> container 3306
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:

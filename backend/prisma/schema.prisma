@@ -41,3 +41,10 @@ model SearchQuery {
 
   @@index([userId, createdAt(sort: Desc)])
 }
+
+model StripeEvent {
+  id          String   @id
+  userId      String?
+  type        String
+  processedAt DateTime @default(now())
+}
