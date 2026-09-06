@@ -72,3 +72,6 @@ desktop.ini
 *.njsproj
 *.sln
 *.sw?
+
+resources
+repomix-output.xml
