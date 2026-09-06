@@ -89,7 +89,10 @@ STRIPE_PRICE_ID="price_monthly_dummy"
 
 3. Run Prisma migrations and seed the initial demo user:
 ```bash
-npx prisma migrate dev --name init_schema
+npx prisma migrate deploy
+# or
+npm run prisma:migrate
+
 npm run prisma:seed
 
 ```
@@ -118,7 +121,7 @@ npm install
 
 2. Populate environment variables:
 ```bash
-cp .env.example .env.local
+cp ../.env.example .env.local
 
 ```
 

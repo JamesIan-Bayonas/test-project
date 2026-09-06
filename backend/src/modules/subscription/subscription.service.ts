@@ -1,12 +1,11 @@
+// backend/src/modules/subscription/subscription.service.ts
+
 import Stripe from 'stripe';
 import { prisma } from '../../lib/prisma';
 import { stripe } from '../../lib/stripe';
 import { env } from '../../config/env';
 import { SubscriptionStatus } from '@prisma/client';
 
-/**
- * Structural interface for period extraction across Stripe SDK revisions
- */
 interface StripePeriodContainer {
   current_period_end?: number;
   billing_cycle_anchor?: number;
@@ -18,9 +17,6 @@ interface StripePeriodContainer {
 }
 
 export class SubscriptionService {
-  /**
-   * Retrieves or creates a Stripe Customer tied to the demo user.
-   */
   public async getOrCreateStripeCustomer(userId: string, email: string): Promise<string> {
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -49,9 +45,6 @@ export class SubscriptionService {
     return customer.id;
   }
 
-  /**
-   * Generates a Stripe Checkout session for a monthly subscription.
-   */
   public async createCheckoutSession(userId: string, email: string): Promise<string> {
     const customerId = await this.getOrCreateStripeCustomer(userId, email);
 
@@ -68,7 +61,7 @@ export class SubscriptionService {
                 name: 'FoodSearch Pro (Nutritional Access)',
                 description: 'Full unredacted access to nutritional data and macro metrics.',
               },
-              unit_amount: 499, // €4.99 / month
+              unit_amount: 499,
               recurring: {
                 interval: 'month',
               },
@@ -78,6 +71,7 @@ export class SubscriptionService {
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
+      client_reference_id: userId,
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [lineItem],
@@ -100,9 +94,6 @@ export class SubscriptionService {
     return session.url;
   }
 
-  /**
-   * Retrieves current demo user subscription status directly from database canonical state.
-   */
   public async getSubscriptionStatus(email: string) {
     const user = await prisma.user.findUnique({
       where: { email },
@@ -129,16 +120,16 @@ export class SubscriptionService {
     };
   }
 
-  /**
-   * Synchronizes Stripe subscription object states with MySQL.
-   */
-  public async syncSubscriptionStatus(subscription: Stripe.Subscription): Promise<void> {
+  public async syncSubscriptionStatus(
+    subscription: Stripe.Subscription,
+    txPrisma: typeof prisma = prisma
+  ): Promise<void> {
     const customerId =
       typeof subscription.customer === 'string'
         ? subscription.customer
         : subscription.customer.id;
 
-    const user = await prisma.user.findFirst({
+    const user = await txPrisma.user.findFirst({
       where: {
         OR: [{ stripeCustomerId: customerId }, { stripeSubscriptionId: subscription.id }],
       },
@@ -167,7 +158,6 @@ export class SubscriptionService {
         break;
     }
 
-    // Defensive period extraction across Stripe SDK typings without 'any'
     const periodData = subscription as unknown as StripePeriodContainer;
     const periodEndTimestamp =
       periodData.current_period_end ??
@@ -176,7 +166,7 @@ export class SubscriptionService {
 
     const currentPeriodEnd = periodEndTimestamp ? new Date(periodEndTimestamp * 1000) : null;
 
-    await prisma.user.update({
+    await txPrisma.user.update({
       where: { id: user.id },
       data: {
         stripeSubscriptionId: subscription.id,
@@ -184,24 +174,18 @@ export class SubscriptionService {
         subscriptionCurrentEnd: currentPeriodEnd,
       },
     });
-
-    console.log(
-      `[AEGIS STRIPE SYNC] User ${user.email} updated to ${status}. End: ${
-        currentPeriodEnd ? currentPeriodEnd.toISOString() : 'N/A'
-      }`
-    );
   }
 
-  /**
-   * Downgrades a user directly upon subscription cancellation or expiration.
-   */
-  public async handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void> {
+  public async handleSubscriptionDeleted(
+    subscription: Stripe.Subscription,
+    txPrisma: typeof prisma = prisma
+  ): Promise<void> {
     const customerId =
       typeof subscription.customer === 'string'
         ? subscription.customer
         : subscription.customer.id;
 
-    await prisma.user.updateMany({
+    await txPrisma.user.updateMany({
       where: {
         OR: [{ stripeCustomerId: customerId }, { stripeSubscriptionId: subscription.id }],
       },
@@ -211,7 +195,5 @@ export class SubscriptionService {
         subscriptionCurrentEnd: null,
       },
     });
-
-    console.log(`[AEGIS STRIPE SYNC] Subscription ${subscription.id} terminated. Reverted to INACTIVE.`);
   }
 }

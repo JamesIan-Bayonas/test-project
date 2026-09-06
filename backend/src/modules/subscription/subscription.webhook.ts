@@ -68,7 +68,6 @@ export class SubscriptionWebhookHandler {
       return;
     }
 
-    // 1. Idempotency Check: Drop duplicate deliveries immediately
     const existingEvent = await prisma.stripeEvent.findUnique({
       where: { id: event.id },
     });
@@ -78,60 +77,50 @@ export class SubscriptionWebhookHandler {
       return;
     }
 
-    // 2. Event Execution Pipeline
     try {
+      let resolvedSubscription: Stripe.Subscription | null = null;
       let targetUserId: string | null = null;
 
-      switch (event.type) {
-        case 'checkout.session.completed': {
-          const session = event.data.object as Stripe.Checkout.Session;
-          targetUserId = session.client_reference_id || (session.metadata?.userId ?? null);
-
-          if (session.subscription && typeof session.subscription === 'string') {
-            const subscription = await stripe.subscriptions.retrieve(session.subscription);
-            await subscriptionService.syncSubscriptionStatus(subscription);
-          }
-          break;
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        targetUserId = session.client_reference_id || (session.metadata?.userId ?? null);
+        if (session.subscription && typeof session.subscription === 'string') {
+          resolvedSubscription = await stripe.subscriptions.retrieve(session.subscription);
         }
-
-        case 'customer.subscription.created':
-        case 'customer.subscription.updated': {
-          const subscription = event.data.object as Stripe.Subscription;
-          targetUserId = subscription.metadata?.userId ?? null;
-          await subscriptionService.syncSubscriptionStatus(subscription);
-          break;
+      } else if (
+        event.type === 'customer.subscription.created' ||
+        event.type === 'customer.subscription.updated' ||
+        event.type === 'customer.subscription.deleted'
+      ) {
+        resolvedSubscription = event.data.object as Stripe.Subscription;
+        targetUserId = resolvedSubscription.metadata?.userId ?? null;
+      } else if (event.type === 'invoice.payment_failed') {
+        const invoice = event.data.object as Stripe.Invoice;
+        const subscriptionId = extractSubscriptionId(invoice);
+        if (subscriptionId) {
+          resolvedSubscription = await stripe.subscriptions.retrieve(subscriptionId);
+          targetUserId = resolvedSubscription.metadata?.userId ?? null;
         }
-
-        case 'customer.subscription.deleted': {
-          const subscription = event.data.object as Stripe.Subscription;
-          targetUserId = subscription.metadata?.userId ?? null;
-          await subscriptionService.handleSubscriptionDeleted(subscription);
-          break;
-        }
-
-        case 'invoice.payment_failed': {
-          const invoice = event.data.object as Stripe.Invoice;
-          const subscriptionId = extractSubscriptionId(invoice);
-
-          if (subscriptionId) {
-            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-            targetUserId = subscription.metadata?.userId ?? null;
-            await subscriptionService.syncSubscriptionStatus(subscription);
-          }
-          break;
-        }
-
-        default:
-          break;
       }
 
-      // 3. Record processed event ID
-      await prisma.stripeEvent.create({
-        data: {
-          id: event.id,
-          type: event.type,
-          userId: targetUserId,
-        },
+      await prisma.$transaction(async (tx) => {
+        const txPrisma = tx as typeof prisma;
+
+        if (event.type === 'customer.subscription.deleted') {
+          if (resolvedSubscription) {
+            await subscriptionService.handleSubscriptionDeleted(resolvedSubscription, txPrisma);
+          }
+        } else if (resolvedSubscription) {
+          await subscriptionService.syncSubscriptionStatus(resolvedSubscription, txPrisma);
+        }
+
+        await tx.stripeEvent.create({
+          data: {
+            id: event.id,
+            type: event.type,
+            userId: targetUserId,
+          },
+        });
       });
 
       res.status(200).json({ received: true });
