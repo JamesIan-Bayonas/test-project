@@ -49,7 +49,7 @@ export class SearchService {
   ): Promise<SearchResultResponse> {
     await this.recordSearchHistory(userId, query, lang);
 
-    const rawProductsData = await this.fetchWithRetry(query, page, pageSize);
+    const rawProductsData = await this.fetchWithRetry(query, lang, page, pageSize);
 
     const rawProducts: OffProductRaw[] = Array.isArray(rawProductsData.products)
       ? rawProductsData.products
@@ -128,7 +128,12 @@ export class SearchService {
     return unique;
   }
 
-  private async fetchWithRetry(query: string, page: number, pageSize: number): Promise<OffApiResponse> {
+  private async fetchWithRetry(
+    query: string,
+    lang: SupportedLanguage,
+    page: number,
+    pageSize: number
+  ): Promise<OffApiResponse> {
     const fields = [
       'code',
       'id',
@@ -162,6 +167,7 @@ export class SearchService {
       page,
       page_size: pageSize,
       fields,
+      lc: lang, // Prioritizes language-specific metadata from upstream index
     };
 
     try {

@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import {
   searchProducts,
   fetchSubscriptionStatus,
+  fetchRecentSearches,
   createCheckoutSession,
   ProductDTO,
   SubscriptionStatusResponse,
@@ -35,7 +36,7 @@ function SearchAppContent() {
 
   const t = TRANSLATIONS[lang];
 
-  // Derive Toast Notification from URL params (Zero synchronous setState inside useEffect)
+  // Derive Toast Notification from URL params
   const urlStatus = searchParams.get('status');
   const activeToast =
     urlStatus && urlStatus !== dismissedStatus
@@ -54,7 +55,27 @@ function SearchAppContent() {
         : null
       : null;
 
-  // Asynchronous external data synchronization with cleanup
+  // Hydrate search history from MySQL on initial application boot
+  useEffect(() => {
+    let isMounted = true;
+
+    fetchRecentSearches()
+      .then((history: string[]) => {
+        if (isMounted && Array.isArray(history)) {
+          setRecentSearches(history);
+        }
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : 'Failed to retrieve search history';
+        console.error(`[AEGIS HISTORY ERROR] ${msg}`);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Asynchronous external subscription synchronization
   useEffect(() => {
     let isSubscribed = true;
 
@@ -86,6 +107,7 @@ function SearchAppContent() {
       const res = await searchProducts(trimmed, activeLang);
       setProducts(res.products);
 
+      // Optimistically update recent searches in synchronization with DB persistence
       setRecentSearches((prev) => {
         const filtered = prev.filter((s) => s.toLowerCase() !== trimmed.toLowerCase());
         return [trimmed, ...filtered].slice(0, 6);
@@ -116,6 +138,12 @@ function SearchAppContent() {
       setIsUpgrading(false);
     }
   };
+
+  const [isMounted, setIsMounted] = useState(false);
+
+useEffect(() => {
+  setIsMounted(true);
+}, []);
 
   return (
     <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50 flex flex-col">
@@ -177,7 +205,8 @@ function SearchAppContent() {
             </div>
             <button
               type="submit"
-              disabled={isLoading || !query.trim()}
+              disabled={!isMounted || isLoading || !query.trim()}
+              suppressHydrationWarning
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
             >
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.searchButton}
