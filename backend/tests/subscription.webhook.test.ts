@@ -17,8 +17,8 @@ jest.mock('../src/lib/stripe', () => ({
   },
 }));
 
-jest.mock('../src/lib/prisma', () => ({
-  prisma: {
+jest.mock('../src/lib/prisma', () => {
+  const mockPrisma: any = {
     stripeEvent: {
       findUnique: jest.fn(),
       create: jest.fn(),
@@ -28,8 +28,12 @@ jest.mock('../src/lib/prisma', () => ({
       update: jest.fn(),
       updateMany: jest.fn(),
     },
-  },
-}));
+    // Execute callback immediately and pass mockPrisma as the transaction client (tx)
+    $transaction: jest.fn(async (cb: (tx: any) => Promise<any>) => cb(mockPrisma)),
+  };
+
+  return { prisma: mockPrisma };
+});
 
 describe('Stripe Webhook Handler Boundary (Article IV Security)', () => {
   beforeEach(() => {
