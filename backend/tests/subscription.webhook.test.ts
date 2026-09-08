@@ -17,8 +17,21 @@ jest.mock('../src/lib/stripe', () => ({
   },
 }));
 
+type MockPrismaClient = { 
+  stripeEvent: {
+    findUnique: jest.Mock;
+    create: jest.Mock;
+  };
+  user: {
+    findFirst: jest.Mock;
+    update: jest.Mock;
+    updateMany: jest.Mock;
+  };
+  $transaction: jest.Mock;
+};
+
 jest.mock('../src/lib/prisma', () => {
-  const mockPrisma: any = {
+  const mockPrisma: MockPrismaClient = {
     stripeEvent: {
       findUnique: jest.fn(),
       create: jest.fn(),
@@ -29,7 +42,7 @@ jest.mock('../src/lib/prisma', () => {
       updateMany: jest.fn(),
     },
     // Execute callback immediately and pass mockPrisma as the transaction client (tx)
-    $transaction: jest.fn(async (cb: (tx: any) => Promise<any>) => cb(mockPrisma)),
+    $transaction: jest.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma)),
   };
 
   return { prisma: mockPrisma };
